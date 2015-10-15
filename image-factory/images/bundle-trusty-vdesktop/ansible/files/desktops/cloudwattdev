@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Dev & Doc
+Exec=firefox %u http://dev.cloudwatt.com
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=/home/cloudwatt/icons/cw-icon-api.png
+Categories=Network;WebBrowser;
+StartupNotify=true

@@ -1,0 +1,150 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: wheezy backports is installed
+      apt_repository:
+        repo='deb http://ftp.us.debian.org/debian wheezy-backports main'
+        state=present
+
+    - name: apt-get update & upgrade
+      apt:
+        upgrade=full
+        update_cache=yes
+        cache_valid_time=3600
+
+    - name: packages installed
+      apt:
+        pkg={{ item }}
+        state=present
+      with_items:
+        - nodejs
+        - nodejs-legacy
+        - curl
+        - bzip2
+        - nginx
+        - unzip
+        - libsqlite3-0
+
+    - name: packages removed
+      apt:
+        pkg=apache2
+        state=absent
+
+    - name: check npm installation
+      stat:
+        path=/usr/bin/npm
+      register: npm_binary
+
+    - name: npm is installed
+      shell: curl -L --insecure https://www.npmjs.org/install.sh | bash
+      when: not npm_binary.stat.exists
+
+    - name: npm packages are installed
+      npm:
+        name={{ item }}
+        state=present
+        global=yes
+      with_items:
+        - forever
+
+    - name: www-data group
+      group:
+        name=www-data
+        state=present
+
+    - name: www-data & dev user
+      user:
+        name="{{ item }}"
+        group=www-data
+        shell=/bin/bash
+        state=present
+      with_items:
+        - www-data
+        - www-dev
+
+    - name: exposed directory
+      file:
+        path="{{ item }}"
+        state=directory
+        owner=www-data
+        group=www-data
+        recurse=yes
+        mode=0770
+      with_items:
+        - /var/lib/www
+        - /var/run/www
+
+    - name: download ghost project
+      get_url:
+        url=https://ghost.org/zip/ghost-0.6.4.zip
+        dest=/tmp/ghost.zip
+
+    - name: expand ghost project in place
+      unarchive:
+        src=/tmp/ghost.zip
+        dest=/var/lib/www
+
+    - name: install
+      sudo_user: root
+      shell: cd /var/lib/www && sudo npm install --production
+
+    - name: exposed directory ownership
+      file:
+        path="{{ item }}"
+        state=directory
+        owner=www-data
+        group=www-data
+        recurse=yes
+      with_items:
+        - /var/lib/www
+        - /var/run/www
+
+    - name: nginx proxy
+      copy:
+        src=files/nginx.site
+        dest=/etc/nginx/sites-available/node_proxy
+        owner=root
+        group=root
+        mode=0644
+      notify: restart nginx
+
+    - name: nginx default disabled
+      file:
+        path=/etc/nginx/sites-enabled/default
+        state=absent
+      notify: restart nginx
+
+    - name: nginx proxy enabled
+      file:
+        src=/etc/nginx/sites-available/node_proxy
+        dest=/etc/nginx/sites-enabled/node_proxy
+        state=link
+        owner=root
+        group=root
+      notify: restart nginx
+
+    - name: node init script
+      copy:
+        src=files/node.init.script
+        dest=/etc/init.d/nodejs
+        owner=root
+        group=root
+        mode=0755
+
+    - name: nodejs started
+      service: name=nodejs state=started
+
+    - name: nodejs enabled
+      service: name=nodejs enabled=yes
+
+    - name: nginx started
+      service: name=nginx state=started
+
+    - name: nginx enabled
+      service: name=nginx enabled=yes
+
+  handlers:
+    - name: restart nginx
+      service: name=nginx state=restarted

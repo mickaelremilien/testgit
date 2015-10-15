@@ -1,0 +1,214 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: apt-get update & upgrade
+      apt: upgrade=full update_cache=yes cache_valid_time=3600
+
+    - name: default sh is bash
+      file: src=/bin/bash dest=/bin/sh state=link
+
+    #LDAP
+    - name: domain name changed
+      replace:
+        dest=/etc/hosts
+        regexp='novalocal'
+        replace='devkit.cw'
+
+    #LDAP
+    - name: set slapd password
+      shell: debconf-set-selections <<< "slapd slapd/password1 password c10udw477"
+    - name: set slapd password again
+      shell: debconf-set-selections <<< "slapd slapd/password2 password c10udw477"
+
+    #Both
+    - name: curl installed
+      apt: pkg=curl state=present
+
+    #Lets Chat
+    - name: nodejs setup
+      shell: curl -sL https://deb.nodesource.com/setup_0.12 | sudo bash -
+
+    #Lets Chat
+    - name: mongodb server key added
+      shell: sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
+    - name: mongodb repository added
+      shell: echo "deb http://repo.mongodb.org/apt/ubuntu "$(lsb_release -sc)"/mongodb-org/3.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.0.list
+    - name: apt-get update
+      apt: update_cache=yes
+    - name: mongodb installed
+      shell: sudo apt-get install -y mongodb-org
+
+    #Lets Chat
+    - name: lets-chat packages installed
+      apt: pkg={{ item }} state=present
+      with_items:
+        - nodejs
+        - git
+    #LDAP
+    - name: ldap packages installed
+      apt: pkg={{ item }} state=present
+      with_items:
+        - slapd
+        - ldap-utils
+        - php5
+        - apache2
+        - libapache2-mod-php5
+        - ldap-account-manager
+
+    #LDAP
+    - name: domain name changed back
+      replace:
+        dest=/etc/hosts
+        regexp='devkit\.cw'
+        replace='novalocal'
+
+    #Lets Chat
+    - name: npm verification
+      stat: path=/usr/bin/npm
+      register: npm_binary
+    - name: npm installed
+      shell: curl -L --insecure https://www.npmjs.org/install.sh | sudo bash -
+      when: not npm_binary.stat.exists
+
+    #Lets Chat
+    - name: lets-chat cloned
+      git:
+        dest=/root/lets-chat
+        repo=https://github.com/sdelements/lets-chat.git
+    - name: lets-chat installed
+      shell: sudo npm install
+      args:
+        chdir: /root/lets-chat
+      register: result
+      until: result|success
+      retries: 3
+      delay: 2
+    - name: lets-chat-ldap installed
+      shell: sudo npm install lets-chat-ldap
+      args:
+        chdir: /root/lets-chat
+    #Lets Chat
+    - name: lets-chat settings file added
+      copy:
+        src=files/settings.yml
+        dest=/root/lets-chat/settings.yml
+        owner=root
+        group=root
+        mode=0644
+
+    #Lets Chat
+    - name: mongodb started
+      service: name=mongod state=started
+    - name: mongodb enabled
+      service: name=mongod enabled=yes
+
+    #Lets Chat
+    - name: lets-chat init script added
+      copy:
+        src=files/lets-chat.conf
+        dest=/etc/init/lets-chat.conf
+        owner=root
+        group=root
+        mode=0644
+    - name: lets-chat started
+      service: name=lets-chat state=started
+    - name: lets-chat enabled
+      service: name=lets-chat enabled=yes
+
+    #LDAP
+    - name: LDAP content file added
+      copy:
+        src=files/add_content.ldif
+        dest=/tmp/add_content.ldif
+        owner=root
+        group=root
+        mode=0644
+    - name: LDAP content file implemented
+      shell: sudo ldapadd -x -D cn=admin,dc=devkit,dc=cw -w c10udw477 -f /tmp/add_content.ldif
+    #LDAP
+    - name: Permissions modification file added
+      copy:
+        src=files/add_permissions.ldif
+        dest=/tmp/add_permissions.ldif
+        owner=root
+        group=root
+        mode=0644
+    - name: Permissions modification file implemented
+      shell: sudo ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/add_permissions.ldif
+
+    #Both
+    - name: default apache2 site enabled
+      shell: /usr/sbin/a2dissite 000-default
+    #LDAP
+    - name: lam site configured
+      copy:
+        src=files/lam.conf
+        dest=/etc/apache2/sites-available/lam.conf
+        owner=root
+        group=root
+        mode=0644
+    - name: lam site enabled
+      shell: /usr/sbin/a2ensite lam
+    #Lets Chat
+    - name: enable http proxy
+      apache2_module:
+        name=proxy_http
+        state=present
+    - name: lets-chat proxy configured
+      copy:
+        src=files/letschat_proxy.conf
+        dest=/etc/apache2/sites-available/letschat_proxy.conf
+        owner=root
+        group=root
+        mode=0644
+    - name: lets-chat proxy site enabled
+      shell: /usr/sbin/a2ensite letschat_proxy
+    #Both
+    - name: apache restarted
+      service: name=apache2 state=restarted
+    - name: apache enabled
+      service: name=apache2 enabled=yes
+
+    #LDAP
+    - name: lam master settings logged in
+      shell: curl -s -c /tmp/cookies.txt -d 'passwd=lam&submit=submit' http://127.0.0.1/templates/config/mainlogin.php
+    - name: lam master settings changed
+      shell: curl -s -b /tmp/cookies.txt -d 'sessionTimeout=30&allowedHosts=&serverurl=&passwordMinLength=0&passwordMinLower=0&passwordMinUpper=0&passwordMinNumeric=0&passwordMinSymbol=0&passwordMinClasses=0&logLevel=5&logDestination=syslog&logFile=&errorReporting=default&masterpassword=c10udw477&masterpassword2=c10udw477&submitFormData=1&submit=submit' http://127.0.0.1/templates/config/mainmanage.php
+    #LDAP
+    - name: lam config logged in
+      shell: curl -s -c /tmp/cookies.txt -d 'filename=lam&passwd=lam&submit=submit' http://127.0.0.1/templates/config/confmain.php
+    - name: lam main settings set
+      shell: curl -s -b /tmp/cookies.txt -d 'serverurl=ldap%3A%2F%2Flocalhost%3A389&useTLS=no&sufftree=dc%3Ddevkit%2Cdc%3Dcw&searchLimit=0&lang=en_US.utf8%3AUTF-8%3AEnglish%20(USA)&scriptservers=&scriptpath=&chmod_owr=on&chmod_oww=on&chmod_owe=on&chmod_grr=on&chmod_gre=on&loginMethod=list&admins=cn%3DAdministrator%2Cou%3DPeople%2Cdc%3Ddevkit%2Cdc%3Dcw&loginSearchSuffix=dc%3Ddevkit%2Cdc%3Dcw&loginSearchFilter=uid%3D%25USER%25&loginSearchDN=&loginSearchPassword=&passwd1=c10udw477&passwd2=c10udw477&saveSettings=Save' http://127.0.0.1/templates/config/confmain.php
+    - name: lam changes saved
+      shell: curl -s -b /tmp/cookies.txt http://127.0.0.1/templates/config/confsave.php
+    #LDAP
+    - name: lam config logged in
+      shell: curl -s -c /tmp/cookies.txt -d 'filename=lam&passwd=c10udw477&submit=submit' http://127.0.0.1/templates/config/confmain.php
+    - name: lam host type removed
+      shell: curl -s -b /tmp/cookies.txt -d 'rem_host=%20&postAvailable=yes' http://127.0.0.1/templates/config/conftypes.php
+    - name: lam samba domains type removed
+      shell: curl -s -b /tmp/cookies.txt -d 'rem_smbDomain=%20&postAvailable=yes' http://127.0.0.1/templates/config/conftypes.php
+    - name: lam account type settings set
+      shell: curl -s -b /tmp/cookies.txt -d 'suffix_user=ou%3DPeople%2Cdc%3Ddevkit%2Cdc%3Dcw&attr_user=%23uid%3B%23givenName%3B%23sn%3B%23uidNumber%3B%23gidNumber&filter_user=&customLabel_user=&suffix_group=ou%3DGroups%2Cdc%3Ddevkit%2Cdc%3Dcw&attr_group=%23cn%3B%23gidNumber%3B%23memberUID%3B%23description&filter_group=&customLabel_group=&postAvailable=yes&saveSettings=Save' http://127.0.0.1/templates/config/conftypes.php
+    - name: lam changes saved
+      shell: curl -s -b /tmp/cookies.txt http://127.0.0.1/templates/config/confsave.php
+    #LDAP
+    - name: lam config logged in
+      shell: curl -s -c /tmp/cookies.txt -d 'filename=lam&passwd=c10udw477&submit=submit' http://127.0.0.1/templates/config/confmain.php
+    - name: lam samba3 module removed
+      shell: curl -s -b /tmp/cookies.txt -d  'user_remove=%20&user_selected%5B%5D=sambaSamAccount&group_selected%5B%5D=sambaGroupMapping&postAvailable=yes' http://127.0.0.1/templates/config/confmodules.php
+    - name: lam samba3 group module removed
+      shell: curl -s -b /tmp/cookies.txt -d 'group_remove=%20&user_selected%5B%5D=sambaSamAccount&group_selected%5B%5D=sambaGroupMapping&postAvailable=yes' http://127.0.0.1/templates/config/confmodules.php
+    - name: lam changes saved
+      shell: curl -s -b /tmp/cookies.txt http://127.0.0.1/templates/config/confsave.php
+    #LDAP
+    # - name: lam config logged in
+    #   shell: curl -s -c /tmp/cookies.txt -d 'filename=lam&passwd=c10udw477&submit=submit' http://127.0.0.1/templates/config/confmain.php
+    # - name: lam module settings set
+    #   shell: curl -s -b /tmp/cookies.txt -d 'inetOrgPerson_hideDescription=on&inetOrgPerson_hideStreet=on&inetOrgPerson_hidePostOfficeBox=on&inetOrgPerson_hidePostalCode=on&inetOrgPerson_hideLocation=on&inetOrgPerson_hideState=on&inetOrgPerson_hideRegisteredAddress=on&inetOrgPerson_hideOfficeName=on&inetOrgPerson_hideRoomNumber=on&inetOrgPerson_hideHomeTelephoneNumber=on&inetOrgPerson_hideFaxNumber=on&inetOrgPerson_hideCarLicense=on&inetOrgPerson_hideEmployeeType=on&inetOrgPerson_hideBusinessCategory=on&inetOrgPerson_hideDepartments=on&inetOrgPerson_hideO=on&inetOrgPerson_hideEmployeeNumber=on&inetOrgPerson_hideInitials=on&inetOrgPerson_hideLabeledURI=on&inetOrgPerson_hideuserCertificate=on&posixAccount_uidGeneratorUsers=range&posixAccount_sambaIDPoolDNUsers=&posixAccount_minUID=10000&posixAccount_maxUID=30000&posixAccount_uidCheckSuffixUser=&posixAccount_pwdHash=SSHA&posixAccount_shells=%2Fbin%2Fbash%0D%0A%2Fbin%2Fcsh%0D%0A%2Fbin%2Fdash%0D%0A%2Fbin%2Ffalse%0D%0A%2Fbin%2Fksh%0D%0A%2Fbin%2Fsh&posixAccount_userNameSuggestion=%40givenname%40%25sn%25&posixGroup_gidGenerator=range&posixGroup_minGID=10000&posixGroup_maxGID=20000&posixGroup_sambaIDPoolDN=&posixGroup_gidCheckSuffix=&postAvailable=yes&saveSettings=Save' http://127.0.0.1/templates/config/moduleSettings.php
+    # - name: lam changes saved
+    #   shell: curl -s -b /tmp/cookies.txt http://127.0.0.1/templates/config/confsave.php
+
+  handlers:

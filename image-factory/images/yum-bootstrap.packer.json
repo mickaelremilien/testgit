@@ -1,0 +1,41 @@
+{
+  "variables": {
+    "source_image": "unknown",
+    "image_name": "unknown",
+    "factory_security_group": "{{ env `FACTORY_SECURITY_GROUP` }}",
+    "factory_network": "{{ env `FACTORY_NETWORK_ID` }}"
+  },
+  "builders": [
+    {
+      "type": "openstack",
+      "ssh_username": "cloud",
+      "flavor": "16",
+      "image_name": "{{ user `image_name` }}",
+      "source_image": "{{ user `source_image` }}",
+      "security_groups": [ "{{ user `factory_security_group`}}" ],
+      "networks": [ "{{ user `factory_network` }}" ],
+      "use_floating_ip": "true",
+      "floating_ip_pool": "6ea98324-0f14-49f6-97c0-885d1b8dc517",
+      "communicator": "ssh",
+      "ssh_pty": true,
+      "ssh_timeout": "2m"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+          "sudo yum update -y",
+          "sudo yum install gcc python-devel git -y",
+          "sudo easy_install -U pip",
+          "sudo pip install ansible"
+      ]
+    },
+    {
+      "type": "ansible-local",
+      "playbook_dir": "ansible",
+      "playbook_file": "ansible/bootstrap.yml",
+      "inventory_file": "ansible/inventory"
+    }
+  ]
+}

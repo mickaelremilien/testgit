@@ -1,0 +1,8 @@
+#!/bin/sh
+
+. ../env.sh
+. ../functions.sh
+
+out=$(ssh_vm_execute_cmd $PRIVATE_KEY "$SSH_USER@$IP" "ps aux | grep haveged")
+
+[ "`echo $out | grep sbin/haveged`" ]

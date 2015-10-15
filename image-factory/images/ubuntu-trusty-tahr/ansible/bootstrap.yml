@@ -1,0 +1,20 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: packages installed
+      apt:
+        pkg={{ item }}
+        state=present
+      with_items:
+        - haveged
+        - curl
+        - bzip2
+        - unzip
+
+    - name: debian user removed
+      user:
+        name=debian
+        state=absent
+        remove=yes

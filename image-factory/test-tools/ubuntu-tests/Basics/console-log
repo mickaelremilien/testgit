@@ -1,0 +1,8 @@
+#!/bin/sh
+
+. ../env.sh
+. ../functions.sh
+
+out=`nova console-log $VM_ID`
+
+[ "`echo $out  | grep -i \"cloud-init\"`" ]

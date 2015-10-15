@@ -1,0 +1,126 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: apt-get update & upgrade
+      apt:
+        upgrade=full
+        update_cache=yes
+        cache_valid_time=3600
+
+    - name: default sh is bash
+      file:
+        src=/bin/bash
+        dest=/bin/sh
+        state=link
+
+    - name: curl installed
+      apt: pkg=curl state=present
+
+    - name: prepare for nodejs
+      shell: curl -sL https://deb.nodesource.com/setup_0.12 | sudo bash -
+
+    - name: mongodb server key added
+      shell: sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
+
+    - name: mongodb repository added
+      shell: echo "deb http://repo.mongodb.org/apt/ubuntu "$(lsb_release -sc)"/mongodb-org/3.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.0.list
+
+    - name: apt-get update & upgrade
+      apt: update_cache=yes
+
+    - name: mongodb installed
+      shell: sudo apt-get install -y mongodb-org
+
+    - name: packages installed
+      apt: pkg={{ item }} state=present
+      with_items:
+        - nodejs
+        - git
+        - nginx
+
+    - name: apache absent
+      apt: pkg=apache2 state=absent
+
+    - name: npm verification
+      stat: path=/usr/bin/npm
+      register: npm_binary
+
+    - name: npm installed
+      shell: curl -L --insecure https://www.npmjs.org/install.sh | sudo bash -
+      when: not npm_binary.stat.exists
+
+    - name: lets-chat cloned
+      git:
+        dest=/root/lets-chat
+        repo=https://github.com/sdelements/lets-chat.git
+
+    - name: lets-chat installed
+      shell: sudo npm install
+      args:
+        chdir: /root/lets-chat
+      register: result
+      until: result|success
+      retries: 3
+      delay: 2
+
+    - name: lets-chat settings file added
+      copy:
+        src=files/settings.yml
+        dest=/root/lets-chat/settings.yml
+        owner=root
+        group=root
+        mode=0644
+
+    - name: mongodb started
+      service: name=mongod state=started
+    - name: mongodb enabled
+      service: name=mongod enabled=yes
+
+    - name: lets-chat init script added
+      copy:
+        src=files/lets-chat.conf
+        dest=/etc/init/lets-chat.conf
+        owner=root
+        group=root
+        mode=0644
+
+    - name: lets-chat started
+      service: name=lets-chat state=started
+    - name: lets-chat enabled
+      service: name=lets-chat enabled=yes
+
+    - name: lets-chat user count
+      shell: sudo mongo --quiet --eval "db.users.count();" letschat
+      register: user_count
+
+    - name: chat example user added
+      shell: |
+        sudo mongo --quiet --eval "db.users.save({ 'displayName' : 'Example User', 'lastName' : 'Doe', 'firstName' : 'John', 'password' : '\$2a\$10\$dHvYd504BRPdX2p3QtFRGuTlNB1vP9gBkZEQrzK2s9XIvZPVGN.j.', 'email' : 'user@example.com', 'username' : 'johndoe', 'provider' : 'local'});" letschat
+      when: user_count.stdout|int == 0
+
+    - name: nginx proxy added
+      copy:
+        src=files/letschat_proxy.conf
+        dest=/etc/nginx/sites-available/letschat_proxy
+        owner=root
+        group=root
+        mode=0644
+
+    - name: nginx default disabled
+      file: state=absent path=/etc/nginx/sites-enabled/default
+    - name: nginx proxy enabled
+      file:
+        src=/etc/nginx/sites-available/letschat_proxy
+        dest=/etc/nginx/sites-enabled/letschat_proxy
+        state=link
+        owner=root
+        group=root
+
+    - name: nginx enabled
+      service: name=nginx enabled=yes
+    - name: nginx restarted
+      service: name=nginx state=restarted
+
+  handlers:

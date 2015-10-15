@@ -1,0 +1,122 @@
+- hosts: local
+  remote_user: cloud
+  sudo: yes
+
+  vars:
+    jenkins_url: "http://127.0.0.1:8080"
+
+  tasks:
+    - name: jenkins key server is known
+      apt_key:
+        url="http://pkg.jenkins-ci.org/debian/jenkins-ci.org.key"
+        state=present
+
+    - name: jenkins apt server is known
+      apt_repository:
+        repo="deb http://pkg.jenkins-ci.org/debian binary/"
+        state=present
+
+    - name: apt cache is up-to-date
+      apt:
+        update_cache=yes
+        cache_valid_time=1
+
+    - name: packages installed
+      apt:
+        pkg="{{ item }}"
+        state=present
+      with_items:
+        - apache2
+        - apache2-utils
+        - libguestfs-tools
+        - python-cffi
+        - libssl-dev
+        - jenkins
+        - unzip
+        - emacs
+      register: result
+      until: result|success
+      retries: 10
+      delay: 2
+
+    - name: jenkins is kvm member
+      user:
+        name=jenkins
+        groups=kvm
+        append=yes
+
+    - name: jenkins is started
+      service: name=jenkins state=restarted
+
+    - name: jenkins is enabled
+      service: name=jenkins enabled=yes
+
+    - name: common aliases
+      copy:
+        dest=/etc/profile.d/aliases.sh
+        content="alias ll=\"ls -aul\""
+        owner=root
+        group=root
+        mode=0644
+
+    - name: default sh is bash
+      file:
+        src=/bin/bash
+        dest=/bin/sh
+        state=link
+
+    - name: download jenkins CLI jar file
+      get_url:
+        url="{{ jenkins_url }}/jnlpJars/jenkins-cli.jar"
+        dest=/root/jenkins-cli.jar
+        force=no
+      register: cli_download
+      until: cli_download|success
+      retries: 6
+      delay: 5
+
+    - name: get jenkins plugin list
+      shell: "java -jar /root/jenkins-cli.jar -s {{ jenkins_url }} list-plugins | grep -e ')$' | awk '{ print $1 }' | tr \"\n\" \" \""
+      register: list_plugins_output
+
+    - name: update jenkins
+      when: list_plugins_output.stdout
+      shell: "java -jar /root/jenkins-cli.jar -s {{ jenkins_url }} install-plugin {{ list_plugins_output.stdout }}"
+
+    - name: install jenkins git plugin
+      shell: "java -jar /root/jenkins-cli.jar -s {{ jenkins_url }} install-plugin git-client git"
+
+    - name: restart jenkins
+      shell: "java -jar /root/jenkins-cli.jar -s {{ jenkins_url }} safe-restart"
+
+    - name: enable http proxy
+      apache2_module:
+        name=proxy_http
+        state=present
+
+    - name: enable apache2 basic auth
+      apache2_module:
+        name=auth_basic
+        state=present
+
+    - name: apache running
+      service: name=apache2 state=started
+    - name: apache enabled
+      service: name=apache2 enabled=yes
+
+    - name: apache site configuration
+      copy:
+        src=files/jenkins.apache2.conf
+        dest=/etc/apache2/sites-available/default-jenkins.conf
+        owner=root
+        group=root
+        mode=0644
+      notify: enable apache site
+
+  handlers:
+    - name: enable apache site
+      shell: /usr/sbin/a2dissite 000-default && /usr/sbin/a2ensite default-jenkins
+      notify: restart apache
+
+    - name: restart apache
+      service: name=apache2 state=restarted

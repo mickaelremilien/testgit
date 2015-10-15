@@ -1,0 +1,161 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: packages installed
+      apt:
+        pkg={{ item }}
+        state=present
+      with_items:
+        - language-pack-fr
+        - xrdp
+        - lxlauncher
+        - xfonts-base
+        - xserver-xorg
+        - lxde-common
+        - lxde-icon-theme
+        - lxpanel
+        - lxinput
+        - lxappearance
+        - lxterminal
+        - terminator
+        - lxrandr
+        - lxshortcut
+        - lxtask
+        - leafpad
+        - openbox
+        - obconf
+        - spacefm
+        - lxdm
+        - firefox
+        - firefox-locale-fr
+        - build-essential
+        - libxslt1-dev
+        - libxml2-dev
+        - whois
+
+    - name: python packages installed
+      pip:
+        name="{{ item }}"
+        state=present
+      with_items:
+        - python-neutronclient
+        - python-novaclient
+        - python-cinderclient
+        - python-keystoneclient
+        - python-swiftclient
+        - python-glanceclient
+        - python-flameclient
+        - python-heatclient
+
+    - name: cw group present
+      group: name=cloudwatt state=present
+
+    - name: cw user present
+      user:
+        name=cloudwatt
+        shell=/bin/bash
+        groups=cloudwatt,sudo
+        append=yes
+
+    - name: desktop dir present
+      file:
+        path="/home/cloudwatt/{{ item }}"
+        state=directory
+        owner=cloudwatt
+        group=cloudwatt
+        mode=0755
+      with_items:
+        - Desktop
+        - icons
+        - apps
+
+    - name: cloudwatt xsession configured
+      copy:
+        src=files/xsession
+        dest=/home/cloudwatt/.xsession
+        owner=cloudwatt
+        group=cloudwatt
+        mode=0644
+
+    - name: cloud xsession configured
+      copy:
+        src=files/xsession
+        dest=/home/cloud/.xsession
+        owner=cloud
+        group=cloud
+        mode=0644
+
+    - name: cloudwatt desktops configured
+      copy:
+        src="files/desktops/{{ item }}"
+        dest="/home/cloudwatt/Desktop/{{ item }}.desktop"
+        owner=cloudwatt
+        group=cloudwatt
+        mode=0644
+      with_items:
+        - cloudwatt
+        - cloudwattdev
+        - cloudwattsupport
+        - cloudwattconsole
+        - terminator
+
+    - name: mozilla configured
+      copy:
+        src="files/mozilla.cfg"
+        dest="/usr/lib/firefox/mozilla.cfg"
+        owner=root
+        group=root
+        mode=0644
+
+    - name: mozilla locale settings configured
+      copy:
+        src="files/mozilla.local-settings"
+        dest="/usr/lib/firefox/defaults/pref/local-settings.js"
+        owner=root
+        group=root
+        mode=0644
+
+    - name: cw theme present
+      get_url:
+        url="https://storage.fr1.cloudwatt.com/v1/AUTH_ca4434bceccb44eaa7e53be4bdbae63d/images/{{ item.src }}"
+        dest="{{ item.dest }}"
+        force=yes
+      with_items:
+        - { src: "cloudwatt-wallpaper.jpg", dest: "/usr/share/lxde/wallpapers/lxde_blue.jpg" }
+        - { src: "cw-icon-api.png", dest: "/home/cloudwatt/icons/cw-icon-api.png" }
+        - { src: "lxde-icon.png", dest: "/usr/share/lxde/images/lxde-icon.png" }
+        - { src: "cw-icon-cloudwatt.png", dest: "/home/cloudwatt/icons/cw-icon-cloudwatt.png" }
+        - { src: "cw-icon-support.png", dest: "/home/cloudwatt/icons/cw-icon-support.png" }
+        - { src: "cw-icon-terminal.png", dest: "/home/cloudwatt/icons/cw-icon-terminal.png" }
+        - { src: "cw-icon-console.png", dest: "/home/cloudwatt/icons/cw-icon-console.png" }
+
+    - name: fr locale generated
+      locale_gen: name=fr_FR.UTF-8 state=present
+
+    - name: fine tuning configuration
+      shell: sed -i "s/. \\/etc\/X11\/Xsession/. \/usr\/bin\/startlxde/" /etc/xrdp/startwm.sh
+
+    - shell: sed -i "s/gnome/Humanity-Dark/" /etc/xdg/lxsession/LXDE/desktop.conf
+    - shell: echo "@setxkbmap fr" >> /etc/xdg/lxsession/LXDE/autostart
+    - shell: sed -i "s/LANG=\"en_US.UTF-8\"/LANG=\"fr_FR.UTF-8\"/g" /etc/default/locale
+    - shell: timedatectl set-timezone Europe/Paris
+      notify: update tzdata
+
+    - name: set locale
+      command: /usr/sbin/update-locale LANG=fr_FR.UTF-8 LC_ALL=fr_FR.UTF-8
+
+    - name: xrdp restarted
+      service:
+        name=xrdp
+        state=restarted
+        enabled=true
+
+  handlers:
+    - name: update tzdata
+      command: /usr/sbin/dpkg-reconfigure --frontend noninteractive tzdata
+
+
+
+

@@ -1,0 +1,47 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: apt-get update & upgrade
+      apt:
+        upgrade=full
+        update_cache=yes
+        cache_valid_time=3600
+
+    - name: packages installed
+      apt:
+        pkg={{ item }}
+        state=present
+      with_items:
+        - curl
+        - openssh-server
+        - ca-certificates
+
+    - name: default sh is bash
+      file:
+        src=/bin/bash
+        dest=/bin/sh
+        state=link
+
+    - name: get hostname
+      shell: curl http://169.254.169.254/latest/meta-data/hostname
+      register: hostname
+    - name: set postfix hostname
+      shell: debconf-set-selections <<< "postfix postfix/mailname string '{{ hostname.stdout }}'"
+    - name: set postfix mailer type
+      shell: debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Internet Site'"
+    - name: postfix installed
+      apt: pkg=postfix state=present
+
+    - name: install gitlab package list
+      shell: curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh | sudo bash
+
+    - name: gitlab-ce installed
+      apt: pkg=gitlab-ce state=present
+    - name: gitlab-ce configured
+      shell: sudo gitlab-ctl reconfigure
+      register: result
+      until: result|success
+      retries: 10
+      delay: 2

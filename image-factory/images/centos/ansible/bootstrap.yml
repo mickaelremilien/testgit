@@ -1,0 +1,19 @@
+- hosts: local
+  remote_user: cloud
+  sudo: true
+
+  tasks:
+    - name: update system
+      yum:
+        name=*
+        state=latest
+        update_cache=yes
+
+    - name: add epel repository
+      shell: rpm -Uvh http://download.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+
+    - name: haveged installed
+      yum:
+        name=haveged
+        state=present
+        update_cache=yes

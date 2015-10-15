@@ -1,0 +1,210 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  tasks:
+    - name: wheezy backports repositories added
+      apt_repository: state=present repo='deb http://ftp.us.debian.org/debian wheezy-backports main'
+
+    - name: apt-get update & upgrade
+      apt:
+        upgrade=full
+        update_cache=yes
+        cache_valid_time=3600
+
+
+
+    - name: packages installed
+      apt:
+        pkg={{ item }}
+        state=present
+      with_items:
+        - openssl
+        - curl
+        - bzip2
+        - unzip
+        - gunzip
+        - gzip
+        - git
+        - libssl-dev
+        - openvpn
+        - easy-rsa
+        - gadmin-openvpn-server
+
+    # - name: python packages installed
+    #   pip:
+    #     name="{{ item }}"
+    #     state=present
+    #   with_items:
+    #     - python-neutronclient
+    #     - python-novaclient
+    #     - python-cinderclient
+    #     - python-keystoneclient
+    #     - python-swiftclient
+    #     - python-glanceclient
+    #     - python-flameclient
+    #     - python-heatclient
+
+    - name: cw user present
+      user:
+        name=cloudwatt
+        shell=/bin/bash
+        group=yes
+        groups=sudo
+        append=yes
+
+    - name: desktop dir present
+      file:
+        path="/home/cloudwatt/{{ item }}"
+        state=directory
+        owner=cloudwatt
+        group=cloudwatt
+        mode=0755
+      with_items:
+        - Desktop
+        - icons
+        - apps
+
+    - name: fr locale generated
+      locale_gen: name=fr_FR.UTF-8 state=present
+
+    - name: Gunzip server configuration
+      unarchive:
+        src=/usr/share/doc/openvpn/examples/sample-config-files/server.conf.gz
+        dest=/etc/openvpn/server.conf
+      sudo: yes
+
+    - name: Copy file configuration client
+      copy:
+        src=/usr/share/doc/openvpn/examples/sample-config-files/client.conf
+        dest=/etc/openvpn/
+        owner=cloud
+        group=cloud
+        mode=644
+        backup=yes
+      sudo: yes
+
+    - name: Copy file configuration easy-rsa
+      copy:
+        src=/usr/share/easy-rsa
+        dest=/etc/openvpn/
+        owner=cloud
+        group=cloud
+        mode=644
+        backup=yes
+      sudo: yes
+
+    - name: create keys folder
+      file: path=/etc/openvpn/easy-rsa/keys state=directory
+      sudo: yes
+
+    - name: Manage openssh firewall with UFW
+      ufw: rule=allow name=OpenSSH
+      sudo: yes
+    - name: Manage port 1194 firewall with UFW
+      ufw: rule=allow port=1194 proto=udp
+      sudo: yes
+
+    #openvpn/client.ovpn
+    - name: client.ovpn configuration
+      copy:
+        src=files/client.ovpn
+        dest=/etc/openvpn/client.ovpn
+        owner=root
+        group=root
+        mode=0644
+        #openvpn/server.conf
+    - name: server.conf configuration
+      copy:
+        src=files/server.conf
+        dest=/etc/openvpn/server.conf
+        owner=root
+        group=root
+        mode=0644
+        #sysctl.conf
+    - name: sysctl.conf configuration
+      copy:
+        src=files/sysctl.conf
+        dest=/etc/sysctl.conf
+        owner=root
+        group=root
+        mode=0644
+        #ufw/before.rules
+    - name: before.rules configuration
+      copy:
+        src=files/before.rules
+        dest=/etc/ufw/before.rules
+        owner=root
+        group=root
+        mode=0644
+        #easy-rsa/vars
+    - name: var configuration
+      copy:
+        src=files/vars
+        dest=/etc/openvpn/easy-rsa/vars
+        owner=root
+        group=root
+        mode=0644
+        #ufw
+    - name: before.rules configuration
+      copy:
+        src=files/ufw
+        dest=/etc/default/ufw
+        owner=root
+        group=root
+        mode=0644
+
+    - name: Enable firewall with UFW
+      ufw: state=enabled policy=allow
+      sudo: yes
+    - name: Enable firewall with UFW
+      ufw: logging=on
+      sudo: yes
+
+  #  - name: source vars file
+  #    command: sudo . /etc/openvpn/easy-rsa/vars
+
+  #  - name: Generate Diffi Hellman parameters
+  #    command: sudo openssl dhparam -out /etc/ssl/certs/dh2048.pem 2048 creates=/etc/ssl/certs/dh2048.pem
+  #  - name: Run the ./vars parameters
+  #    command: . /etc/openvpn/easy-rsa/vars
+  #  - name: Cleanning all old parameters
+  #    command: bash /etc/openvpn/easy-rsa/clean-all
+  #  - name: Building Certificate Authority
+  #    command: bash /etc/openvpn/easy-rsa/build-ca
+  #  - name: Building server keys
+  #    command: bash /etc/openvpn/easy-rsa/build-key-server server
+  #  - name: Building client keys
+  #    command: bash /etc/openvpn/easy-rsa/build-key client1
+
+  #  - name: Moving server key ca.crt
+  #    copy:
+  #      src=/etc/openvpn/easy-rsa/keys/ca.crt
+  #      dest=/etc/openvpn/ca.crt
+  #      owner=cloud
+  #      group=cloud
+  #      mode=644
+  #      backup=yes
+
+  #  - name: Moving server key server.crt
+  #    copy:
+  #      src=/etc/openvpn/easy-rsa/keys/server.crt
+  #      dest=/etc/openvpn/server.crt
+  #      owner=cloud
+  #      group=cloud
+  #      mode=644
+  #      backup=yes
+
+  #  - name: Moving server key server.key
+  #    copy:
+  #      src=/etc/openvpn/easy-rsa/keys/server.key
+  #      dest=/etc/openvpn/server.key
+  #      owner=cloud
+  #      group=cloud
+  #      mode=644
+  #      backup=yes
+  #    notify: restart openvpn
+
+handlers:
+    - name: restart openvpn
+      service: name=openvpn state=restarted

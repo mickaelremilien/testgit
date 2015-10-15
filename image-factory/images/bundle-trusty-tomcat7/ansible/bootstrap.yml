@@ -1,0 +1,9 @@
+- hosts: local
+  user: cloud
+  sudo: true
+
+  vars:
+    tomcat_static:
+
+  roles:
+    - tomcat_static

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Support
+Exec=firefox %u http://support.cloudwatt.com
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=/home/cloudwatt/icons/cw-icon-support.png
+Categories=Network;WebBrowser;
+StartupNotify=true

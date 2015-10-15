@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Console
+Exec=firefox %u http://console.cloudwatt.com
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=/home/cloudwatt/icons/cw-icon-console.png
+Categories=Network;WebBrowser;
+StartupNotify=true

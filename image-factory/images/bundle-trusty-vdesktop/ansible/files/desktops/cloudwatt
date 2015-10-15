@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Cloudwatt
+Exec=firefox %u http://www.cloudwatt.com
+Terminal=false
+X-MultipleArgs=false
+Type=Application
+Icon=/home/cloudwatt/icons/cw-icon-cloudwatt.png
+Categories=Network;WebBrowser;
+StartupNotify=true

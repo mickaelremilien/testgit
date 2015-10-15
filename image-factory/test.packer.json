@@ -1,0 +1,26 @@
+{
+  "variables": {
+      "source_image": "f47ebb9b-7d8f-4751-b60b-7108e3aa5f4c",
+      "image_name": "unknown",
+      "factory_security_group": "BAAS-sg-5qxuqj53eic3"
+  },
+  "builders": [
+      {
+          "type": "openstack",
+          "ssh_username": "cloud",
+          "flavor": "16",
+          "image_name": "testubuntu",
+          "source_image": "{{ user `source_image`}}",
+          "security_groups": [ "{{ user `factory_security_group`}}" ],
+          "networks": [ "d6a59e63-13ca-48e6-91f6-508cf9307e00" ],
+          "use_floating_ip": "true",
+          "floating_ip_pool": "6ea98324-0f14-49f6-97c0-885d1b8dc517"
+      }
+  ],
+  "provisioners": [
+      {
+          "type": "shell",
+          "inline": [ "sudo yum update", "sudo yum upgrade -y" ]
+      }
+  ]
+}

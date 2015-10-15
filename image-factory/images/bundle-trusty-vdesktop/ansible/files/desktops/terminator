@@ -1,0 +1,13 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Terminal
+Name[fr]=Terminal
+GenericName=Terminal
+GenericName[fr]=Terminal
+Comment=Use the command line
+Comment[fr]=Utiliser la ligne de commande
+TryExec=terminator
+Exec=terminator
+Icon=/home/cloudwatt/icons/cw-icon-terminal.png
+Type=Application
+Categories=GTK;Utility;TerminalEmulator;

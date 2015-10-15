@@ -1,0 +1,51 @@
+---
+- name: apt-get update & upgrade
+  apt:
+    upgrade=full
+    update_cache=yes
+    cache_valid_time=3600
+
+- name: packages installed
+  apt:
+    pkg="{{ item }}"
+    state=present
+  with_items:
+    - openjdk-7-jre-headless
+    - tomcat7
+    - apache2
+
+- name: remove default tomcat ROOT
+  file:
+    path=/var/lib/tomcat7/webapps/ROOT
+    state=absent
+
+- name: setup sample.war from tomcat
+  get_url:
+    dest=/var/lib/tomcat7/webapps/ROOT.war
+    url=https://tomcat.apache.org/tomcat-7.0-doc/appdev/sample/sample.war
+
+- name: tomcat running
+  service: name=tomcat7 state=started
+
+- name: tomcat enabled
+  service: name=tomcat7 enabled=yes
+
+- name: enable http proxy
+  apache2_module:
+    name=proxy_http
+    state=present
+
+- name: apache running
+  service: name=apache2 state=started
+
+- name: apache enabled
+  service: name=apache2 enabled=yes
+
+- name: apache site configuration
+  copy:
+    src=tomcat.apache2.conf
+    dest=/etc/apache2/sites-available/default-tomcat.conf
+    owner=root
+    group=root
+    mode=0644
+  notify: enable apache site

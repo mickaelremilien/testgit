@@ -1,0 +1,26 @@
+dn: ou=People,dc=devkit,dc=cw
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Groups,dc=devkit,dc=cw
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=developers,ou=Groups,dc=devkit,dc=cw
+objectClass: posixGroup
+cn: developers
+gidNumber: 5000
+
+dn: cn=Administrator,ou=People,dc=devkit,dc=cw
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: cloudwatt
+sn: Watt
+givenName: Cloud
+cn: Administrator
+displayName: Cloud Watt
+uidNumber: 10000
+gidNumber: 5000
+userPassword: c10udw477
+homeDirectory: /home/cloudwatt
